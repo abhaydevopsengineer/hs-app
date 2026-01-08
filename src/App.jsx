@@ -1,11 +1,8 @@
-// Import the functions you need from the SDKs you need
+// 🔥 FIREBASE SETUP (ONLY ONCE)
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDE3sdmPG3TGKV0CJDWHYPzDRE-8OKIanw",
   authDomain: "hs-expensemanager.firebaseapp.com",
@@ -16,14 +13,24 @@ const firebaseConfig = {
   measurementId: "G-PFS0S1EKBC"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+const firebaseApp = initializeApp(firebaseConfig);
+export const auth = getAuth(firebaseApp);
+export const db = getFirestore(firebaseApp);
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import React, { useState, useMemo, useEffect } from "react";
+import {
+  signInAnonymously,
+  signInWithCustomToken,
+  onAuthStateChanged
+} from "firebase/auth";
+import {
+  doc,
+  setDoc,
+  deleteDoc,
+  collection,
+  onSnapshot
+} from "firebase/firestore";
+
 import { 
   LayoutDashboard, 
   ArrowRightLeft, 
@@ -62,20 +69,7 @@ import {
   FileText 
 } from 'lucide-react';
 
-// --- FIREBASE CONFIGURATION ---
-// Note: When deploying live, replace JSON.parse(__firebase_config) with your actual Firebase config object.
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-  apiKey: "", // Fill your actual Firebase details here for standalone hosting
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
-};
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
 const appId = 'hs-expenses-manager-pro';
 
 const App = () => {
@@ -594,3 +588,4 @@ const App = () => {
 
 
 export default App;
+
