@@ -1,6 +1,3 @@
-1:500261749602:web:9840d9da48d8ace202223b
-
-
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
@@ -594,5 +591,6 @@ const App = () => {
     </div>
   );
 };
+
 
 export default App;
