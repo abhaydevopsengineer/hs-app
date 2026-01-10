@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { auth, db } from "./firebase";
-import { signInAnonymously } from "firebase/auth";
-import { collection } from "firebase/firestore";
+import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
+import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { LayoutDashboard, ArrowRightLeft, ... } from 'lucide-react';
+
 import { 
   LayoutDashboard, 
   ArrowRightLeft, 
@@ -562,3 +564,4 @@ const App = () => {
 };
 
 export default App;
+
