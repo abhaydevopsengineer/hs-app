@@ -16,7 +16,7 @@ import {
   FileSpreadsheet, 
   Settings, 
   Trash2, 
-  Pencil,
+  Pencil, 
   Wallet, 
   PlusCircle, 
   RotateCcw, 
@@ -27,7 +27,6 @@ import {
   Banknote, 
   ChevronDown, 
   History, 
-  ArrowRightLeft as NetIcon, 
   ArrowDownLeft, 
   ArrowUpRight, 
   Database, 
@@ -564,6 +563,7 @@ const App = () => {
 };
 const App = () => <div>Hello world</div>;
 export default App;
+
 
 
 
