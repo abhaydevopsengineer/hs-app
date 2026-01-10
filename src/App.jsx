@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { auth, db } from "./firebase";
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
-import { LayoutDashboard, ArrowRightLeft, ... } from 'lucide-react';
+import { LayoutDashboard, ArrowRightLeft,UserCheck, UserMinus} from 'lucide-react';
 
 import { 
   LayoutDashboard, 
@@ -564,4 +564,5 @@ const App = () => {
 };
 
 export default App;
+
 
