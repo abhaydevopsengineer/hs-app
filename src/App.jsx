@@ -1,4 +1,21 @@
 import React, { useState, useMemo, useEffect } from 'react';
+// 🔥 GLOBAL RUNTIME ERROR CATCH (VERY IMPORTANT)
+useEffect(() => {
+  window.onerror = function (msg, url, lineNo, columnNo, error) {
+    document.body.innerHTML = `
+      <pre style="color:red; padding:20px; font-size:14px;">
+RUNTIME ERROR:
+${msg}
+
+Line: ${lineNo}
+Column: ${columnNo}
+
+${error?.stack || ''}
+      </pre>
+    `;
+  };
+}, []);
+
 import { auth, db } from "./firebase";
 import { signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 import { collection, onSnapshot, doc, setDoc, deleteDoc } from "firebase/firestore";
@@ -81,30 +98,26 @@ const App = () => {
   const [accounts, setAccounts] = useState(['Bank', 'Cash', 'Credit Card', 'UPI', 'Wallet']);
   const entryTypes = ['Expense', 'Income', 'EMI_Payment', 'Goal_Deposit', 'Insurance_Premium', 'Investment', 'Balance_Transfer'];
 
-  // --- FIREBASE AUTH ---
-  useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
+useEffect(() => {
+  signInAnonymously(auth).catch(console.error);
+  return onAuthStateChanged(auth, (u) => {
+    if (u) setUser(u);
+  });
+}, []);
+
 
   // --- FIREBASE DATA SYNC ---
   useEffect(() => {
     if (!user) return;
     const sync = (collName, setter) => {
-      const q = collection(db, 'artifacts', appId, 'users', user.uid, collName);
-      return onSnapshot(q, (snapshot) => {
-        const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-        setter(data);
-      });
-    };
+  if (!user?.uid) return () => {};
+  const q = collection(db, 'artifacts', appId, 'users', user.uid, collName);
+  return onSnapshot(q, (snapshot) => {
+    setter(snapshot.docs.map(d => ({ ...d.data(), id: d.id })));
+  });
+};
+
+
     const unsubTx = sync('transactions', setTransactions);
     const unsubDebt = sync('debts', setDebts);
     const unsubGoal = sync('goals', setGoals);
@@ -289,7 +302,13 @@ const App = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (!user) return <div className="h-screen flex items-center justify-center bg-black text-white italic tracking-widest text-xs uppercase"><Loader2 className="animate-spin mr-3"/> Connecting...</div>;
+  if (!user) {
+  return (
+    <div style={{ padding: 40, fontSize: 14 }}>
+      Firebase authenticated… loading data
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row font-sans selection:bg-black selection:text-white text-gray-900">
@@ -563,6 +582,7 @@ const App = () => {
 };
 const App = () => <div>Hello world</div>;
 export default App;
+
 
 
 
