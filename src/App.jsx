@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 
 import { auth, db } from "./firebase";
 import {
@@ -14,50 +14,46 @@ import {
   deleteDoc
 } from "firebase/firestore";
 
-import { 
-  LayoutDashboard, 
-  ArrowRightLeft, 
-  UserCheck, 
-  UserMinus, 
-  Target, 
-  Plus, 
-  Search, 
-  X, 
-  FileSpreadsheet, 
-  Settings, 
-  Trash2, 
-  Pencil, 
-  Wallet, 
-  PlusCircle, 
-  RotateCcw, 
-  CheckCircle2, 
-  Sparkles, 
-  Loader2, 
-  Cloud, 
-  Banknote, 
-  ChevronDown, 
-  History, 
-  ArrowDownLeft, 
-  ArrowUpRight, 
-  Database, 
-  Clock, 
-  CalendarDays, 
-  BellRing, 
-  Plane, 
-  Car, 
-  TrendingUp, 
-  RefreshCcw, 
-  CreditCard as CardIcon, 
-  FileText 
-} from 'lucide-react';
+import {
+  LayoutDashboard,
+  ArrowRightLeft,
+  UserCheck,
+  UserMinus,
+  Target,
+  Plus,
+  Search,
+  X,
+  FileSpreadsheet,
+  Settings,
+  Trash2,
+  Pencil,
+  Wallet,
+  PlusCircle,
+  Loader2,
+  Cloud,
+  Banknote,
+  ChevronDown,
+  History,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Database,
+  Clock,
+  CalendarDays,
+  BellRing,
+  Plane,
+  Car,
+  TrendingUp,
+  RefreshCcw,
+  CreditCard as CardIcon,
+  FileText
+} from "lucide-react";
 
 const App = () => {
-
-  // 🔥 GLOBAL RUNTIME ERROR CATCH (SAFE & VALID)
-  useEffect(() => {
-    window.onerror = function (msg, url, lineNo, columnNo, error) {
-      document.body.innerHTML = `
-        <pre style="color:red; padding:20px; font-size:14px;">
+  // Global error catcher (safe & non-crashing)
+useEffect(() => {
+  window.onerror = function (msg, url, lineNo, columnNo, error) {
+    document.body.innerHTML = `
+      <pre style="color:red; padding:20px; font-size:14px;">
 RUNTIME ERROR:
 ${msg}
 
@@ -65,14 +61,17 @@ Line: ${lineNo}
 Column: ${columnNo}
 
 ${error?.stack || ""}
-        </pre>
-      `;
-    };
+      </pre>
+    `;
+  };
 
-    return () => {
-      window.onerror = null;
-    };
-  }, []);
+  return () => {
+    window.onerror = null;
+  };
+}, []);
+
+
+ 
 
 
 
@@ -594,3 +593,4 @@ useEffect(() => {
     </div>
   );
 };
+
