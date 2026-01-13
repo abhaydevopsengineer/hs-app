@@ -184,7 +184,7 @@ const App = () => {
       <div className="bg-indigo-600 p-6 rounded-3xl shadow-2xl mb-8 animate-bounce">
         <Loader2 className="animate-spin text-white" size={48}/>
       </div>
-      <p className="font-black uppercase tracking-[0.4em] text-xl text-slate-900">HS_MANAGER_V3</p>
+      <p className="font-black uppercase tracking-[0.4em] text-xl text-slate-900">HS_MANAGER_V4</p>
       <p className="text-slate-400 mt-4 text-xs font-bold uppercase tracking-widest">Waking up secure cloud servers...</p>
     </div>
   );
@@ -192,7 +192,19 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row font-sans text-slate-900 overflow-x-hidden selection:bg-indigo-100 uppercase font-black">
       
-      {/* SIDEBAR */}
+      {/* MOBILE HEADER (Always Visible on Top for Mobile) */}
+      <div className="md:hidden bg-white border-b border-slate-200 p-5 flex justify-between items-center sticky top-0 z-50 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-indigo-600 text-white p-2 rounded-xl"><Wallet size={20}/></div>
+          <h1 className="text-lg font-black tracking-tighter text-slate-900">HS_MANAGER_V3</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+          <span className="text-[8px] text-slate-400 tracking-widest">v3.0 LIVE</span>
+        </div>
+      </div>
+
+      {/* SIDEBAR (Desktop) */}
       <div className="hidden md:flex w-80 bg-white border-r border-slate-200 p-10 flex-col h-screen sticky top-0 shadow-sm z-30">
         <div className="flex items-center gap-4 mb-14">
           <div className="bg-indigo-600 text-white p-3 rounded-2xl shadow-lg shadow-indigo-100"><Wallet size={28}/></div>
@@ -222,12 +234,12 @@ const App = () => {
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-16 gap-8 px-4">
           <div className="animate-in slide-in-from-left duration-700">
             <div className="flex items-center gap-3 mb-2">
-              <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full text-[10px] tracking-widest">SYSTEM_VERSION_3.0</span>
+              <span className="bg-indigo-100 text-indigo-700 px-4 py-1 rounded-full text-[10px] tracking-widest">HS_MANAGER_V3</span>
             </div>
             <h2 className="text-6xl font-black text-slate-900 tracking-tighter">{activeTab}</h2>
             <div className="flex items-center gap-3 mt-4">
               <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-              <p className="text-slate-400 text-[10px] tracking-[0.4em]">CLOUD_STATUS: SYNCING_OK</p>
+              <p className="text-slate-400 text-[10px] tracking-[0.4em]">SYSTEM v3.0 • CLOUD ACTIVE</p>
             </div>
           </div>
           <button 
@@ -401,7 +413,7 @@ const App = () => {
            <div className="bg-white rounded-[4.5rem] w-full max-w-2xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col p-12 md:p-16 border border-slate-100">
               <div className="flex justify-between items-center mb-12 px-6">
                 <div>
-                  <h3 className="text-5xl text-slate-900 tracking-tighter">NEW ENTRY</h3>
+                  <h3 className="text-5xl text-slate-900 tracking-tighter uppercase">NEW ENTRY</h3>
                   <p className="text-indigo-500 text-[11px] tracking-[0.4em] mt-4 font-black">SECURE_SYNC_V3_ACTIVE</p>
                 </div>
                 <button onClick={() => setIsModalOpen(false)} className="p-6 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-[2.5rem] transition-all"><X size={36}/></button>
@@ -409,11 +421,11 @@ const App = () => {
               <form onSubmit={handleTransaction} className="space-y-8 overflow-y-auto px-6 custom-scrollbar pr-8 pb-12">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 font-black">
                   <div className="space-y-4">
-                    <label className="text-[11px] text-slate-400 tracking-[0.3em] ml-4">DATE</label>
-                    <input type="date" required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full bg-slate-50 border-4 border-transparent p-7 rounded-[2rem] text-sm outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner" />
+                    <label className="text-[11px] text-slate-400 tracking-[0.3em] ml-4 font-black">DATE</label>
+                    <input type="date" required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full bg-slate-50 border-4 border-transparent p-7 rounded-[2rem] text-sm outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner font-black" />
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[11px] text-indigo-500 tracking-[0.3em] ml-4">TYPE</label>
+                    <label className="text-[11px] text-indigo-500 tracking-[0.3em] ml-4 font-black">TYPE</label>
                     <select value={formData.type} onChange={e=>setFormData({...formData, type:e.target.value, linkedId:''})} className="w-full bg-slate-50 border-4 border-transparent p-7 rounded-[2rem] text-sm outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner font-black uppercase">
                       <option value="Expense">Expense (-)</option>
                       <option value="Income">Income (+)</option>
