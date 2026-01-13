@@ -1,80 +1,25 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from 'react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import { 
+  LayoutDashboard, ArrowRightLeft, UserCheck, Target, Plus, Search, X, 
+  FileSpreadsheet, Settings, Trash2, Pencil, Wallet, PlusCircle, 
+  CheckCircle2, Loader2, Cloud, Banknote, History, 
+  ArrowRightLeft as NetIcon, ArrowDownLeft, ArrowUpRight, Database, 
+  Clock, CalendarDays, BellRing, TrendingUp, CreditCard as CardIcon, FileText 
+} from 'lucide-react';
 
-import { auth, db } from "./firebase";
-import {
-  signInAnonymously,
-  signInWithCustomToken,
-  onAuthStateChanged
-} from "firebase/auth";
-import {
-  collection,
-  onSnapshot,
-  doc,
-  setDoc,
-  deleteDoc
-} from "firebase/firestore";
-
-import {
-  LayoutDashboard,
-  ArrowRightLeft,
-  UserCheck,
-  UserMinus,
-  Target,
-  Plus,
-  Search,
-  X,
-  FileSpreadsheet,
-  Settings,
-  Trash2,
-  Pencil,
-  Wallet,
-  PlusCircle,
-  Loader2,
-  Cloud,
-  Banknote,
-  ChevronDown,
-  History,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Database,
-  Clock,
-  CalendarDays,
-  BellRing,
-  Plane,
-  Car,
-  TrendingUp,
-  RefreshCcw,
-  CreditCard as CardIcon,
-  FileText
-} from "lucide-react";
-
-const App = () => {
-  // Global error catcher (safe & non-crashing)
-useEffect(() => {
-  window.onerror = function (msg, url, lineNo, columnNo, error) {
-    document.body.innerHTML = `
-      <pre style="color:red; padding:20px; font-size:14px;">
-RUNTIME ERROR:
-${msg}
-
-Line: ${lineNo}
-Column: ${columnNo}
-
-${error?.stack || ""}
-      </pre>
-    `;
-  };
-
-  return () => {
-    window.onerror = null;
-  };
-}, []);
-
-
- 
-
-
-
+// --- PRODUCTION FIREBASE CONFIG ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDE3sdmPG3TGKV0CJDWHYPzDRE-8OKIanw",
+  authDomain: "hs-expensemanager.firebaseapp.com",
+  projectId: "hs-expensemanager",
+  storageBucket: "hs-expensemanager.firebasestorage.app",
+  messagingSenderId: "500261749602",
+  appId: "1:500261749602:web:9840d9da48d8ace202223b",
+  measurementId: "G-PFS0S1EKBC"
+};
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -775,3 +720,4 @@ const App = () => {
   );
 };
 
+export default App;
