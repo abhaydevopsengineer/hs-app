@@ -10,7 +10,7 @@ import {
   Clock, CalendarDays, BellRing, TrendingUp, CreditCard as CardIcon, FileText 
 } from 'lucide-react';
 
-// --- UPDATED FIREBASE CONFIG (Latest Data Provided) ---
+// --- PRODUCTION FIREBASE CONFIG ---
 const firebaseConfig = {
   apiKey: "AIzaSyDE3sdmPG3TGKV0CJDWHYPzDRE-8OKIanw",
   authDomain: "hs-expensemanager.firebaseapp.com",
@@ -21,14 +21,13 @@ const firebaseConfig = {
   measurementId: "G-PFS0S1EKBC"
 };
 
-// Singleton initialization to prevent multiple instances
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'hs-expenses-manager-pro';
 
 const App = () => {
-  // --- 1. ALL HOOKS DEFINED AT TOP (MANDATORY) ---
+  // --- 1. STATES ---
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,19 +53,17 @@ const App = () => {
   const accounts = ['Bank', 'Cash', 'Credit Card', 'UPI', 'Wallet'];
   const entryTypes = ['Expense', 'Income', 'EMI_Payment', 'Goal_Deposit', 'Insurance_Premium', 'Investment', 'Balance_Transfer'];
 
-  // --- AUTH & DATA SYNC ---
+  // --- 2. AUTH & SYNC ---
   useEffect(() => {
     const initAuth = async () => {
       try {
         await signInAnonymously(auth);
       } catch (err) {
-        console.error("Firebase Auth Error:", err.message);
+        console.error("Auth Fail:", err.message);
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
     return () => unsubscribe();
   }, []);
 
@@ -77,7 +74,7 @@ const App = () => {
       return onSnapshot(q, (snapshot) => {
         const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
         setter(data);
-      }, (error) => console.error(`Sync error (${collName}):`, error.message));
+      });
     };
     const unsubTx = sync('transactions', setTransactions);
     const unsubDebt = sync('debts', setDebts);
@@ -87,7 +84,7 @@ const App = () => {
     return () => { unsubTx(); unsubDebt(); unsubGoal(); unsubAcc(); };
   }, [user]);
 
-  // --- CALCULATIONS (Hooks before return guard) ---
+  // --- 3. CALCULATIONS ---
   const totals = useMemo(() => {
     const openingBal = accountRecords.reduce((acc, curr) => acc + Number(curr.balance || 0), 0);
     const income = transactions.filter(t => t.type === 'Income').reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
@@ -144,24 +141,24 @@ const App = () => {
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [transactions, searchQuery, filterType]);
 
+  // --- 4. FORM STATES ---
   const [formData, setFormData] = useState({ date: new Date().toISOString().split('T')[0], type: 'Expense', category: 'Grocery', subcategory: '', status: 'Done', amount: '', account: 'Bank', toAccount: '', paymentName: '', note: '', linkedId: '' });
   const [debtFormData, setDebtFormData] = useState({ name: '', type: 'Given', total: '', paid: '0', dueDate: new Date().toISOString().split('T')[0] });
   const [goalFormData, setGoalFormData] = useState({ name: '', target: '', current: '0', targetDate: '' });
 
-  // --- ACTIONS ---
+  // --- 5. ACTIONS ---
   const saveToCloud = async (coll, id, data) => { if (user) await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, coll, id.toString()), data); };
   const handleDelete = async (coll, id) => { if (user) await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, coll, id.toString())); };
 
   const handleTransaction = async (e) => {
     e.preventDefault();
     const id = editingId || Date.now();
-    const amt = Number(formData.amount);
-    await saveToCloud('transactions', id, { ...formData, id, amount: amt });
+    await saveToCloud('transactions', id, { ...formData, id, amount: Number(formData.amount) });
     if (formData.linkedId) {
       const d = debts.find(x => x.id === formData.linkedId);
-      if(d) await saveToCloud('debts', d.id, { ...d, paid: Number(d.paid) + amt });
+      if(d) await saveToCloud('debts', d.id, { ...d, paid: Number(d.paid) + Number(formData.amount) });
       const g = goals.find(x => x.id === formData.linkedId);
-      if(g) await saveToCloud('goals', g.id, { ...g, current: Number(g.current) + amt });
+      if(g) await saveToCloud('goals', g.id, { ...g, current: Number(g.current) + Number(formData.amount) });
     }
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 1500);
@@ -186,15 +183,6 @@ const App = () => {
     setEditingGoalId(null);
   };
 
-  // --- RENDER LOGIC ---
-  if (!user) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-[#F8F9FA] text-black p-6 text-center">
-      <Loader2 className="animate-spin mb-4 text-blue-500" size={40}/>
-      <p className="font-black uppercase tracking-widest text-sm text-gray-800">Connecting Cloud Database...</p>
-      <p className="text-[10px] text-gray-400 mt-2 italic max-w-xs">Agar ye screen hategi nahi, toh check karein ki aapne Firebase Console mein 'Anonymous Authentication' enable kiya hai ya nahi.</p>
-    </div>
-  );
-
   const exportToSheets = () => {
     let csv = "\ufeffTimeline,Type,Category,Transaction,Account,Amount\n";
     transactions.forEach(t => {
@@ -208,138 +196,302 @@ const App = () => {
     link.click();
   };
 
+  // --- 6. RENDER LOGIC ---
+  if (!user) return (
+    <div className="h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-800 p-6 text-center font-sans">
+      <div className="bg-white p-8 rounded-3xl shadow-xl flex flex-col items-center">
+        <Loader2 className="animate-spin mb-4 text-indigo-600" size={48}/>
+        <p className="font-bold uppercase tracking-widest text-lg">HS Manager</p>
+        <p className="text-slate-400 mt-2">Connecting to cloud database...</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col md:flex-row font-sans text-gray-900 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-900 overflow-x-hidden selection:bg-indigo-100">
       
       {/* SIDEBAR (Desktop) */}
-      <div className="hidden md:flex w-72 bg-white border-r p-8 flex-col h-screen sticky top-0 shadow-sm">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="bg-black text-white p-2 rounded-xl shadow-lg"><Wallet size={24}/></div>
-          <h1 className="text-xl font-black uppercase tracking-tighter">HS_Manager</h1>
+      <div className="hidden md:flex w-72 bg-white border-r border-slate-200 p-6 flex-col h-screen sticky top-0 shadow-sm z-30">
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <div className="bg-indigo-600 text-white p-2.5 rounded-2xl shadow-lg shadow-indigo-200"><Wallet size={24}/></div>
+          <h1 className="text-xl font-extrabold tracking-tight text-slate-800 uppercase">HS_Manager</h1>
         </div>
-        <nav className="space-y-3 flex-grow font-bold">
+        <nav className="space-y-1.5 flex-grow">
           {[
-            { id: 'dashboard', icon: <LayoutDashboard size={20}/> },
-            { id: 'history', icon: <ArrowRightLeft size={20}/> },
-            { id: 'debts', icon: <UserCheck size={20}/> },
-            { id: 'goals', icon: <Target size={20}/> },
-            { id: 'settings', icon: <Settings size={20}/> }
+            { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={20}/> },
+            { id: 'history', label: 'History', icon: <ArrowRightLeft size={20}/> },
+            { id: 'debts', label: 'Hisab (Debts)', icon: <UserCheck size={20}/> },
+            { id: 'goals', label: 'Goals', icon: <Target size={20}/> },
+            { id: 'settings', label: 'Settings', icon: <Settings size={20}/> }
           ].map(tab => (
-            <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`w-full flex items-center gap-4 p-4 rounded-2xl text-sm transition-all ${activeTab === tab.id ? 'bg-black text-white shadow-xl translate-x-2' : 'text-gray-400 hover:bg-gray-50'}`}>
-              {tab.icon} <span className="capitalize">{tab.id}</span>
+            <button 
+              key={tab.id} 
+              onClick={()=>setActiveTab(tab.id)} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${activeTab === tab.id ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'}`}
+            >
+              {tab.icon} <span>{tab.label}</span>
             </button>
           ))}
         </nav>
-        <button onClick={exportToSheets} className="w-full bg-green-50 text-green-700 p-4 rounded-2xl text-[10px] font-black border-2 border-green-100 flex items-center justify-center gap-2 hover:bg-green-100 transition-all uppercase tracking-widest"><FileSpreadsheet size={16}/> EXPORT REPORT</button>
+        <div className="pt-6 border-t border-slate-100">
+          <button onClick={exportToSheets} className="w-full bg-emerald-50 text-emerald-700 p-4 rounded-2xl text-xs font-bold border border-emerald-100 flex items-center justify-center gap-2 hover:bg-emerald-100 transition-all uppercase tracking-widest shadow-sm"><FileSpreadsheet size={16}/> EXPORT REPORT</button>
+        </div>
       </div>
 
-      <main className="flex-grow p-4 md:p-10 max-w-7xl mx-auto w-full pb-32">
-        <header className="flex justify-between items-start mb-10">
-          <div>
-            <h2 className="text-4xl font-black tracking-tighter uppercase">{activeTab} View</h2>
-            <p className="text-gray-400 text-[10px] font-black tracking-widest mt-1 uppercase">HS_Manager LIVE • Secure</p>
+      {/* MAIN CONTENT */}
+      <main className="flex-grow p-4 md:p-8 max-w-7xl mx-auto w-full pb-32">
+        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 px-2">
+          <div className="animate-in slide-in-from-left duration-500">
+            <h2 className="text-3xl md:text-4xl font-black text-slate-800 tracking-tight capitalize">{activeTab}</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <p className="text-slate-400 text-[11px] font-bold tracking-widest uppercase">Live Workspace</p>
+            </div>
           </div>
-          <button onClick={()=>{setEditingId(null); setIsModalOpen(true);}} className="bg-black text-white px-8 py-4 rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all flex items-center gap-3">
-            <PlusCircle size={18}/> Quick Entry
+          <button 
+            onClick={()=>{setEditingId(null); setIsModalOpen(true);}} 
+            className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-3.5 rounded-2xl font-bold text-sm uppercase tracking-wider shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2"
+          >
+            <PlusCircle size={20}/> Quick Entry
           </button>
         </header>
 
-        {/* DASHBOARD */}
+        {/* DASHBOARD VIEW */}
         {activeTab === 'dashboard' && (
-          <div className="space-y-10 animate-in fade-in">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-black uppercase tracking-widest">
-              <div className="bg-white p-8 rounded-[2.5rem] border-l-[12px] border-blue-500 shadow-sm transition-all hover:scale-[1.02]">
-                <span className="text-[10px] text-gray-300">Net Balance</span>
-                <h3 className="text-3xl text-gray-900 mt-2">₹{totals.balance.toLocaleString()}</h3>
+          <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
+            {/* Top Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center text-center relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+                <div className="bg-indigo-100 text-indigo-600 p-3 rounded-2xl mb-4"><Wallet size={24}/></div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Net Balance</p>
+                <h3 className="text-3xl font-black text-slate-800 mt-1">₹{totals.balance.toLocaleString()}</h3>
               </div>
-              <div className="bg-white p-8 rounded-[2.5rem] border-l-[12px] border-green-500 shadow-sm transition-all hover:scale-[1.02]">
-                <span className="text-[10px] text-gray-300">Receivables</span>
-                <h3 className="text-3xl text-green-600 mt-2">₹{totals.rec.toLocaleString()}</h3>
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center text-center relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+                <div className="bg-emerald-100 text-emerald-600 p-3 rounded-2xl mb-4"><ArrowDownLeft size={24}/></div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Receivables</p>
+                <h3 className="text-3xl text-emerald-600 font-black mt-1">₹{totals.rec.toLocaleString()}</h3>
               </div>
-              <div className="bg-white p-8 rounded-[2.5rem] border-l-[12px] border-red-500 shadow-sm transition-all hover:scale-[1.02]">
-                <span className="text-[10px] text-gray-300">Payables</span>
-                <h3 className="text-3xl text-red-600 mt-2">₹{totals.pay.toLocaleString()}</h3>
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 flex flex-col items-center text-center relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-16 h-16 bg-rose-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+                <div className="bg-rose-100 text-rose-600 p-3 rounded-2xl mb-4"><ArrowUpRight size={24}/></div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Payables</p>
+                <h3 className="text-3xl text-rose-600 font-black mt-1">₹{totals.pay.toLocaleString()}</h3>
               </div>
             </div>
 
-            <div className="bg-white p-8 rounded-[3.5rem] border shadow-sm transition-all">
-               <h4 className="font-black text-xl uppercase mb-6 flex items-center gap-3 tracking-tighter text-gray-800"><Database className="text-orange-500" size={24}/> Account Breakdown</h4>
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 font-black uppercase">
+            {/* Account Status Grid */}
+            <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+               <div className="flex items-center justify-between mb-8">
+                <h4 className="font-extrabold text-xl text-slate-800 flex items-center gap-3 tracking-tight"><Database className="text-indigo-500" size={24}/> Accounts</h4>
+                <div className="h-1 flex-grow mx-6 bg-slate-50 rounded-full"></div>
+               </div>
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
                   {totals.accBreakdown.map(acc => (
-                    <div key={acc.name} className="p-4 bg-gray-50 rounded-2xl border-2 border-transparent hover:border-black transition-all group">
-                       <p className="text-[10px] text-gray-400">{acc.name}</p>
-                       <p className={`text-xl mt-1 ${acc.balance < 0 ? 'text-red-500' : 'text-gray-900'}`}>₹{acc.balance.toLocaleString()}</p>
+                    <div key={acc.name} className="p-5 bg-slate-50 rounded-3xl border border-transparent hover:border-indigo-200 hover:bg-white hover:shadow-md transition-all group cursor-default">
+                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">{acc.name}</p>
+                       <p className={`text-xl font-black mt-2 ${acc.balance < 0 ? 'text-rose-500' : 'text-slate-800'}`}>₹{acc.balance.toLocaleString()}</p>
                     </div>
                   ))}
                </div>
             </div>
 
+            {/* Loans & Goals Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-               <div className="bg-white p-10 rounded-[3rem] border shadow-sm border-t-[12px] border-t-red-500 font-black uppercase">
-                  <h4 className="text-xl mb-6 flex items-center gap-3 tracking-tighter text-gray-800"><BellRing className="text-red-500" size={22}/> Active Loans</h4>
-                  <div className="space-y-4">
+               {/* Loans Card */}
+               <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-rose-100 text-rose-600 p-2 rounded-xl"><BellRing size={20}/></div>
+                    <h4 className="font-extrabold text-lg text-slate-800 tracking-tight">Pending Dues</h4>
+                  </div>
+                  <div className="space-y-3">
                     {debts.filter(d => d.type === 'Taken' && (Number(d.total)-Number(d.paid)) > 0).map(d => (
-                      <div key={d.id} className="p-4 border-b flex justify-between items-center group hover:bg-gray-50 rounded-xl transition-all">
-                        <div><p className="text-xs text-gray-900">{d.name}</p><p className="text-[9px] text-gray-400 mt-1">Due: {d.dueDate}</p></div>
-                        <p className="text-red-600 font-black">₹{(Number(d.total) - Number(d.paid)).toLocaleString()}</p>
+                      <div key={d.id} className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center hover:bg-slate-100 transition-all">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800 uppercase">{d.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold flex items-center gap-1 mt-0.5"><Clock size={10}/> Due: {d.dueDate}</p>
+                        </div>
+                        <p className="text-sm font-black text-rose-600">₹{(Number(d.total) - Number(d.paid)).toLocaleString()}</p>
                       </div>
                     ))}
-                    {debts.filter(d => d.type === 'Taken' && (Number(d.total)-Number(d.paid)) > 0).length === 0 && <p className="text-center py-4 text-gray-300 text-xs italic">No active dues</p>}
+                    {debts.filter(d => d.type === 'Taken' && (Number(d.total)-Number(d.paid)) > 0).length === 0 && (
+                      <div className="py-10 text-center flex flex-col items-center opacity-40">
+                        <CheckCircle2 size={32} className="text-emerald-500 mb-2"/>
+                        <p className="text-xs font-bold uppercase tracking-wider">All dues cleared!</p>
+                      </div>
+                    )}
                   </div>
                </div>
-               <div className="bg-white p-10 rounded-[3rem] border shadow-sm border-t-[12px] border-t-purple-500 font-black uppercase">
-                  <h4 className="text-xl mb-6 flex items-center gap-3 tracking-tighter text-gray-800"><TrendingUp className="text-purple-500" size={22}/> Goal Savings</h4>
-                  <div className="space-y-4">
-                    {goalReport.map(g => (
-                      <div key={g.id} className="p-4 bg-gray-50 rounded-2xl flex justify-between items-center transition-all border-2 border-transparent hover:border-purple-100 group">
-                        <div><p className="text-[10px] text-gray-900">{g.name}</p><p className="text-[8px] text-purple-400 font-bold">{g.diffMonths} Months To Go</p></div>
-                        <div className="text-right"><p className="text-sm text-purple-600 font-black">₹{g.monthlyRequired.toLocaleString()}</p></div>
+
+               {/* Goals Progress Card */}
+               <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="bg-indigo-100 text-indigo-600 p-2 rounded-xl"><TrendingUp size={20}/></div>
+                    <h4 className="font-extrabold text-lg text-slate-800 tracking-tight">Goals Status</h4>
+                  </div>
+                  <div className="space-y-6">
+                    {goalReport.slice(0, 3).map(g => (
+                      <div key={g.id} className="group cursor-default">
+                        <div className="flex justify-between items-end mb-2 px-1">
+                          <div>
+                            <p className="text-xs font-black text-slate-700 uppercase">{g.name}</p>
+                            <p className="text-[10px] text-slate-400 font-bold">{g.diffMonths} months remaining</p>
+                          </div>
+                          <p className="text-xs font-black text-indigo-600">{Math.round((Number(g.current)/Number(g.target))*100)}%</p>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden border border-slate-200">
+                          <div className="h-full bg-indigo-600 transition-all duration-1000 shadow-sm" style={{width: `${Math.min((g.current/g.target)*100, 100)}%`}}></div>
+                        </div>
                       </div>
                     ))}
-                    {goalReport.length === 0 && <p className="text-center py-4 text-gray-300 text-xs italic">No goals added</p>}
+                    {goalReport.length === 0 && (
+                      <div className="py-10 text-center flex flex-col items-center opacity-40">
+                        <Target size={32} className="text-indigo-500 mb-2"/>
+                        <p className="text-xs font-bold uppercase tracking-wider">Plan your first goal</p>
+                      </div>
+                    )}
                   </div>
                </div>
             </div>
           </div>
         )}
 
-        {/* HISTORY */}
+        {/* HISTORY VIEW */}
         {activeTab === 'history' && (
-          <div className="bg-white rounded-[3rem] border shadow-sm overflow-hidden animate-in slide-in-from-bottom-5 font-black uppercase">
-            <div className="p-8 border-b flex flex-col md:flex-row gap-4 bg-gray-50/30">
-               <div className="relative flex-grow max-w-xl w-full">
-                  <Search size={16} className="absolute left-4 top-3 text-gray-300"/><input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} placeholder="Search records..." className="w-full pl-12 bg-white rounded-2xl py-3 outline-none focus:ring-1 focus:ring-black text-xs font-bold"/>
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-5 duration-500">
+            <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row gap-4 bg-slate-50/30 items-center">
+               <div className="relative flex-grow w-full max-w-md">
+                  <Search size={18} className="absolute left-4 top-3 text-slate-400"/>
+                  <input 
+                    value={searchQuery} 
+                    onChange={e=>setSearchQuery(e.target.value)} 
+                    placeholder="Search transactions..." 
+                    className="w-full pl-12 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-semibold outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                  />
                </div>
-               <select value={filterType} onChange={e=>setFilterType(e.target.value)} className="rounded-2xl px-6 py-3 text-xs bg-white border font-black outline-none transition-all hover:bg-gray-100"><option value="All">All Entries</option><option value="Income">Income</option><option value="Expense">Expense</option><option value="EMI_Payment">EMI</option></select>
+               <div className="flex gap-2 w-full md:w-auto">
+                 <select 
+                   value={filterType} 
+                   onChange={e=>setFilterType(e.target.value)} 
+                   className="flex-grow md:flex-grow-0 px-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-bold text-slate-700 outline-none hover:bg-slate-50 transition-colors"
+                 >
+                    <option value="All">All Transactions</option>
+                    <option value="Income">Income Only</option>
+                    <option value="Expense">Expense Only</option>
+                    <option value="EMI_Payment">EMIs</option>
+                 </select>
+               </div>
             </div>
-            <div className="overflow-x-auto"><table className="w-full text-left tracking-tighter"><thead className="bg-gray-50 text-[9px] text-gray-400 border-b"><tr><th className="p-5">Timeline</th><th className="p-5">Summary</th><th className="p-5 text-right">Amount</th><th className="p-5 text-center">Manage</th></tr></thead><tbody className="divide-y text-xs">{filteredTx.map(t => (
-              <tr key={t.id} className="hover:bg-gray-50 transition-all font-black">
-                <td className="p-5 text-gray-400 text-xs">{t.date}</td>
-                <td className="p-5"><p className="text-xs text-gray-900">{t.subcategory || t.category}</p><p className="text-[9px] text-gray-400 italic">{t.account}</p></td>
-                <td className={`p-5 text-sm text-right ${t.type==='Income'?'text-green-600':'text-red-600'}`}>₹{Number(t.amount).toLocaleString()}</td>
-                <td className="p-5 flex justify-center gap-2"><button onClick={()=>{setFormData({...t, amount:t.amount.toString()}); setEditingId(t.id); setIsModalOpen(true);}} className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl"><Pencil size={14}/></button><button onClick={()=>handleDelete('transactions', t.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl"><Trash2 size={14}/></button></td>
-              </tr>
-            ))}</tbody></table></div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left min-w-[600px]">
+                <thead>
+                  <tr className="bg-slate-50/80 text-[11px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                    <th className="p-5">Timeline</th>
+                    <th className="p-5">Transaction Details</th>
+                    <th className="p-5 text-right">Amount</th>
+                    <th className="p-5 text-center">Manage</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredTx.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50/50 transition-all group">
+                      <td className="p-5">
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-700">{t.date}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Verified</span>
+                        </div>
+                      </td>
+                      <td className="p-5">
+                        <div className="flex flex-col">
+                          <p className="text-sm font-extrabold text-slate-800 uppercase tracking-tight">{t.subcategory || t.category}</p>
+                          <p className="text-[11px] text-slate-400 font-semibold italic flex items-center gap-1.5 mt-0.5"><div className="w-1.5 h-1.5 rounded-full bg-indigo-400"></div>{t.account}</p>
+                        </div>
+                      </td>
+                      <td className="p-5 text-right">
+                        <span className={`text-base font-black ${t.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {t.type === 'Income' ? '+' : '-'}₹{Number(t.amount).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="p-5">
+                        <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={()=>{setFormData({...t, amount:t.amount.toString()}); setEditingId(t.id); setIsModalOpen(true);}} className="p-2 text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm"><Pencil size={14}/></button>
+                          <button onClick={()=>handleDelete('transactions', t.id)} className="p-2 text-rose-600 bg-rose-50 rounded-xl hover:bg-rose-600 hover:text-white transition-all shadow-sm"><Trash2 size={14}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredTx.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="p-20 text-center">
+                        <div className="flex flex-col items-center opacity-30">
+                          <Search size={48} className="mb-4"/>
+                          <p className="text-lg font-black uppercase tracking-widest">No Records Found</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
+        {/* NET LEDGERS (DEBTS) VIEW */}
         {activeTab === 'debts' && (
-          <div className="space-y-8 animate-in slide-in-from-bottom-5 font-black uppercase">
-             <div className="flex justify-between items-center bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                <h3 className="text-xl tracking-tighter">Net Ledgers (Hisab)</h3>
-                <button onClick={()=>{setEditingDebtId(null); setIsDebtModalOpen(true);}} className="bg-black text-white px-10 py-4 rounded-3xl text-xs tracking-widest active:scale-95 transition-all">New Master Entry</button>
+          <div className="space-y-8 animate-in slide-in-from-bottom-5 duration-500">
+             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 gap-4">
+                <div className="px-2">
+                  <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Net Hisab Ledgers</h3>
+                  <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-widest">Grouped by Person/entity</p>
+                </div>
+                <button onClick={()=>{setEditingDebtId(null); setIsDebtModalOpen(true);}} className="w-full sm:w-auto bg-slate-800 text-white px-8 py-3.5 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all flex items-center justify-center gap-2"><PlusCircle size={18}/> Master Record</button>
              </div>
-             <div className="space-y-12">
+             
+             <div className="grid grid-cols-1 gap-8">
                {nameLedgers.map(ledger => {
                  const net = ledger.receivables - ledger.payables;
                  return (
-                   <div key={ledger.name} className="bg-white rounded-[3.5rem] border shadow-md overflow-hidden transition-all hover:shadow-2xl">
-                    <div className="p-10 border-b bg-gray-50/50 flex flex-col md:flex-row justify-between items-center gap-6">
-                       <div><h2 className="text-4xl tracking-tighter text-gray-900">{ledger.name}</h2><div className={`mt-3 flex items-center gap-3 px-6 py-3 rounded-2xl border-2 text-lg tracking-widest shadow-sm ${net >= 0 ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}><NetIcon size={20}/> Net: ₹{Math.abs(net).toLocaleString()} <span>{net >= 0 ? '(Lena Hai)' : '(Dena Hai)'}</span></div></div>
-                       <div className="flex gap-8 text-center"><div className="bg-green-50/50 p-4 rounded-3xl border border-green-100 min-w-[120px] font-black"><p className="text-[10px] text-gray-400 mb-1 flex items-center gap-1 justify-center"><ArrowDownLeft size={12}/> Lena Hai</p><p className="text-2xl text-green-600">₹{ledger.receivables.toLocaleString()}</p></div><div className="bg-red-50/50 p-4 rounded-3xl border border-red-100 min-w-[120px] font-black"><p className="text-[10px] text-gray-400 mb-1 flex items-center gap-1 justify-center"><ArrowUpRight size={12}/> Dena Hai</p><p className="text-2xl text-red-600">₹{ledger.payables.toLocaleString()}</p></div></div>
+                   <div key={ledger.name} className="bg-white rounded-[3.5rem] shadow-sm border border-slate-100 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                    <div className="p-8 md:p-10 bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-8">
+                       <div className="flex flex-col items-center md:items-start">
+                          <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase">{ledger.name}</h2>
+                          <div className={`mt-4 flex items-center gap-3 px-6 py-2.5 rounded-2xl border-2 font-black text-base uppercase tracking-wider ${net >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+                            <NetIcon size={18}/> 
+                            Net Hisab: ₹{Math.abs(net).toLocaleString()} 
+                            <span className="text-[10px] ml-1">{net >= 0 ? '(Lena Hai)' : '(Dena Hai)'}</span>
+                          </div>
+                       </div>
+                       <div className="flex gap-6">
+                          <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 min-w-[140px] text-center group">
+                             <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest group-hover:text-emerald-500 transition-colors">Receivable</p>
+                             <p className="text-2xl text-emerald-600 font-black">₹{ledger.receivables.toLocaleString()}</p>
+                          </div>
+                          <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 min-w-[140px] text-center group">
+                             <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest group-hover:text-rose-500 transition-colors">Payable</p>
+                             <p className="text-2xl text-rose-600 font-black">₹{ledger.payables.toLocaleString()}</p>
+                          </div>
+                       </div>
                     </div>
-                    <div className="p-10 grid grid-cols-1 lg:grid-cols-2 gap-10">
-                       <div><h4 className="text-xs text-gray-400 tracking-[0.2em] mb-4">Activity history</h4><div className="space-y-3 max-h-[350px] overflow-y-auto pr-3">{ledger.linkedTx.map(t => (<div key={t.id} className="flex justify-between items-center p-4 border shadow-sm bg-white rounded-2xl transition-all group font-black"><div className="flex items-center gap-3"><div className={`p-2 rounded-lg ${t.type === 'Income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}><Banknote size={14}/></div><div><p className="text-[10px] text-gray-900 tracking-tighter">{t.date}</p><p className="text-[9px] text-gray-400">{t.account}</p></div></div><p className={`text-sm ${t.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>{t.type === 'Income' ? '+' : '-'} ₹{t.amount.toLocaleString()}</p></div>))}</div></div>
+                    <div className="p-8 md:p-10 bg-white">
+                       <h4 className="text-[11px] font-black text-slate-400 tracking-[0.2em] mb-6 flex items-center gap-2 uppercase"><History size={16}/> Recent Transactions</h4>
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {ledger.linkedTx.slice(0, 6).map(t => (
+                            <div key={t.id} className="flex justify-between items-center p-5 bg-slate-50 rounded-[2rem] border border-transparent hover:border-slate-200 transition-all group">
+                               <div className="flex items-center gap-4">
+                                  <div className={`p-2 rounded-xl ${t.type === 'Income' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}><Banknote size={16}/></div>
+                                  <div>
+                                     <p className="text-[10px] font-bold text-slate-400">{t.date}</p>
+                                     <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{t.account}</p>
+                                  </div>
+                               </div>
+                               <p className={`text-sm font-black ${t.type === 'Income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                 {t.type === 'Income' ? '+' : '-'}₹{t.amount.toLocaleString()}
+                               </p>
+                            </div>
+                          ))}
+                          {ledger.linkedTx.length === 0 && <p className="col-span-full py-10 text-center text-slate-300 font-bold uppercase text-[10px] tracking-widest">No direct entries</p>}
+                       </div>
                     </div>
                  </div>
                );})}
@@ -347,78 +499,248 @@ const App = () => {
           </div>
         )}
 
+        {/* GOALS VIEW */}
         {activeTab === 'goals' && (
-          <div className="space-y-10 animate-in slide-in-from-bottom-5 font-black uppercase">
-            <div className="flex justify-between items-center bg-white p-8 rounded-[2.5rem] border shadow-sm transition-all hover:shadow-md">
-               <h3 className="text-xl tracking-tighter text-gray-900">Savings Goals Tracker</h3>
-               <button onClick={()=>setIsGoalModalOpen(true)} className="bg-black text-white px-10 py-4 rounded-3xl text-xs tracking-widest active:scale-95 transition-all"><PlusCircle size={18} className="inline mr-2"/> Setup New Goal</button>
+          <div className="space-y-10 animate-in slide-in-from-bottom-5 duration-500 font-sans px-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 gap-4">
+               <div className="px-2">
+                 <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Goal Tracker</h3>
+                 <p className="text-slate-400 text-xs font-bold mt-1 uppercase tracking-widest">Saving for the future</p>
+               </div>
+               <button onClick={()=>setIsGoalModalOpen(true)} className="w-full sm:w-auto bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"><PlusCircle size={18}/> Create New Goal</button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-10">
               {goalReport.map(g => (
-                <div key={g.id} className="bg-white p-10 rounded-[3rem] border shadow-lg group relative overflow-hidden transition-all hover:shadow-2xl">
-                   <div className="absolute top-8 right-8 flex gap-2 opacity-0 group-hover:opacity-100 transition-all font-black"><button onClick={()=>{setGoalFormData(g); setEditingGoalId(g.id); setIsGoalModalOpen(true);}} className="text-blue-500 hover:bg-blue-50 p-2 rounded-xl"><Pencil size={18}/></button><button onClick={()=>handleDelete('goals', g.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-xl"><Trash2 size={18}/></button></div>
-                   <h3 className="text-3xl tracking-tighter text-gray-900">{g.name}</h3><p className="text-xs text-purple-500 mt-1">Due: {g.targetDate}</p>
-                   <div className="text-right mt-4 font-black"><p className="text-3xl text-blue-600">{Math.round((Number(g.current)/Number(g.target))*100)}%</p><p className="text-[10px] text-gray-300">Target Achieved</p></div>
-                   <div className="w-full bg-gray-100 h-5 rounded-full overflow-hidden mt-4 border shadow-inner"><div className="bg-black h-full transition-all duration-1000 shadow-xl" style={{width:`${Math.min((g.current/g.target)*100, 100)}%`}}></div></div>
-                   <div className="mt-8 pt-6 border-t border-gray-100 grid grid-cols-2 gap-6 text-center font-black">
-                      <div><p className="text-[10px] text-gray-400 uppercase">Monthly Needed</p><p className="text-xl text-purple-600">₹{g.monthlyRequired.toLocaleString()}</p></div>
-                      <div><p className="text-[10px] text-gray-400 uppercase">Remaining</p><p className="text-xl text-gray-900">₹{g.remaining.toLocaleString()}</p></div>
+                <div key={g.id} className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-100 group relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
+                   <div className="absolute top-8 right-8 flex gap-3 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={()=>{setGoalFormData(g); setEditingGoalId(g.id); setIsGoalModalOpen(true);}} className="p-2.5 text-indigo-600 bg-indigo-50 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"><Pencil size={18}/></button>
+                      <button onClick={()=>handleDelete('goals', g.id)} className="p-2.5 text-rose-600 bg-rose-50 rounded-2xl hover:bg-rose-600 hover:text-white transition-all"><Trash2 size={18}/></button>
+                   </div>
+                   <div className="flex justify-between items-start mb-10 font-black uppercase tracking-tight px-2">
+                     <div>
+                        <h3 className="text-3xl text-slate-800">{g.name}</h3>
+                        <p className="text-xs text-indigo-500 mt-1 flex items-center gap-1.5 font-bold"><CalendarDays size={14}/> {g.targetDate}</p>
+                     </div>
+                     <div className="text-right">
+                        <p className="text-4xl text-indigo-600">{Math.round((Number(g.current)/Number(g.target))*100)}%</p>
+                        <p className="text-[10px] text-slate-400 mt-1 font-bold">Achieved</p>
+                     </div>
+                   </div>
+                   
+                   <div className="relative mb-10">
+                      <div className="w-full bg-slate-100 h-4 rounded-full overflow-hidden border border-slate-50 shadow-inner">
+                        <div className="bg-indigo-600 h-full transition-all duration-[2000ms] ease-out rounded-full shadow-lg" style={{width:`${Math.min((g.current/g.target)*100, 100)}%`}}></div>
+                      </div>
+                      <div className="flex justify-between mt-3 px-1 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                         <span>Saved: ₹{Number(g.current).toLocaleString()}</span>
+                         <span>Target: ₹{Number(g.target).toLocaleString()}</span>
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-2 gap-6 mt-6">
+                      <div className="bg-slate-50 p-6 rounded-[2.5rem] text-center border border-transparent hover:border-indigo-100 transition-all group">
+                         <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Monthly Target</p>
+                         <p className="text-2xl text-indigo-600 font-black">₹{g.monthlyRequired.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-slate-50 p-6 rounded-[2.5rem] text-center border border-transparent hover:border-slate-200 transition-all">
+                         <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">Still Needed</p>
+                         <p className="text-2xl text-slate-800 font-black">₹{g.remaining.toLocaleString()}</p>
+                      </div>
                    </div>
                 </div>
               ))}
+              {goalReport.length === 0 && (
+                <div className="col-span-full py-20 bg-white rounded-[3.5rem] border border-dashed border-slate-200 flex flex-col items-center justify-center opacity-40">
+                  <div className="bg-slate-50 p-6 rounded-full mb-4"><Target size={48} className="text-slate-400"/></div>
+                  <p className="text-xl font-black text-slate-500 uppercase tracking-[0.2em]">Start Planning Today</p>
+                </div>
+              )}
             </div>
           </div>
         )}
 
+        {/* SETTINGS VIEW */}
         {activeTab === 'settings' && (
-          <div className="max-w-3xl mx-auto animate-in zoom-in duration-300 font-black uppercase">
-             <div className="bg-white p-10 rounded-[3rem] border shadow-sm">
-                <h3 className="text-2xl mb-8 flex items-center gap-3 text-gray-800"><Database size={24} className="text-orange-500"/> Account Setup</h3>
-                <form onSubmit={async (e) => { e.preventDefault(); const name = e.target.accName.value; const bal = e.target.accBal.value; await saveToCloud('accountRecords', Date.now(), { name, balance: Number(bal) }); e.target.reset(); }} className="flex gap-3 mb-10"><input name="accName" required placeholder="Bank/Cash Name" className="flex-[2] border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-bold outline-none focus:border-black transition-all" /><input name="accBal" type="number" required placeholder="Opening Balance ₹" className="flex-1 border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-bold outline-none focus:border-black transition-all" /><button type="submit" className="bg-black text-white px-8 rounded-2xl text-[10px] font-black active:scale-95 transition-all">Set</button></form>
-                <div className="space-y-3 uppercase font-black text-xs text-gray-600">
-                   {accountRecords.map(acc => (<div key={acc.id} className="flex justify-between items-center p-5 bg-gray-50 rounded-[1.5rem] border-2 border-transparent hover:border-black transition-all group"><span>{acc.name}</span><div className="flex items-center gap-4"><span>₹{Number(acc.balance).toLocaleString()}</span><button onClick={()=>handleDelete('accountRecords', acc.id)} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button></div></div>))}
+          <div className="max-w-3xl mx-auto animate-in zoom-in duration-500 font-sans">
+             <div className="bg-white p-8 md:p-12 rounded-[3.5rem] shadow-sm border border-slate-100">
+                <div className="flex items-center gap-4 mb-10 px-2">
+                  <div className="bg-amber-100 text-amber-600 p-3 rounded-2xl"><Database size={24}/></div>
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Account Management</h3>
+                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Opening Balances & Names</p>
+                  </div>
+                </div>
+                
+                <form onSubmit={async (e) => { 
+                  e.preventDefault(); 
+                  const name = e.target.accName.value; 
+                  const bal = e.target.accBal.value; 
+                  await saveToCloud('accountRecords', Date.now(), { name, balance: Number(bal) }); 
+                  e.target.reset(); 
+                }} className="flex flex-col sm:flex-row gap-4 mb-12">
+                  <input name="accName" required placeholder="Account Name (e.g. SBI Bank)" className="flex-[2] bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-sm font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner" />
+                  <input name="accBal" type="number" required placeholder="Balance ₹" className="flex-1 bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-sm font-bold outline-none focus:bg-white focus:border-indigo-500 transition-all shadow-inner" />
+                  <button type="submit" className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Add</button>
+                </form>
+
+                <div className="space-y-3">
+                   {accountRecords.map(acc => (
+                     <div key={acc.id} className="flex justify-between items-center p-5 bg-slate-50 rounded-2xl border border-transparent hover:border-slate-200 transition-all group">
+                       <span className="text-sm font-black text-slate-700 uppercase tracking-tight">{acc.name}</span>
+                       <div className="flex items-center gap-6">
+                          <span className="text-base font-black text-slate-900">₹{Number(acc.balance).toLocaleString()}</span>
+                          <button onClick={()=>handleDelete('accountRecords', acc.id)} className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"><Trash2 size={18}/></button>
+                       </div>
+                     </div>
+                   ))}
+                   {accountRecords.length === 0 && <p className="text-center py-10 text-slate-300 font-bold uppercase text-[10px] tracking-widest">No custom accounts</p>}
                 </div>
              </div>
           </div>
         )}
       </main>
 
-      {/* MOBILE NAV BAR */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-4 z-40 backdrop-blur-xl bg-white/90 shadow-2xl">
-        {[{ id: 'dashboard', icon: <LayoutDashboard size={24}/> }, { id: 'history', icon: <ArrowRightLeft size={24}/> }, { id: 'debts', icon: <UserCheck size={24}/> }, { id: 'goals', icon: <Target size={24}/> }, { id: 'settings', icon: <Settings size={24}/> }].map(tab => (
-          <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={`p-3 rounded-2xl transition-all ${activeTab===tab.id?'bg-black text-white shadow-md':'text-gray-400'}`}>{tab.icon}</button>
+      {/* MOBILE NAVIGATION BAR */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-100 flex justify-around items-center p-3 z-40 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
+        {[
+          { id: 'dashboard', icon: <LayoutDashboard size={22}/> },
+          { id: 'history', icon: <ArrowRightLeft size={22}/> },
+          { id: 'debts', icon: <UserCheck size={22}/> },
+          { id: 'goals', icon: <Target size={22}/> },
+          { id: 'settings', icon: <Settings size={22}/> }
+        ].map(tab => (
+          <button 
+            key={tab.id} 
+            onClick={()=>setActiveTab(tab.id)} 
+            className={`p-3 rounded-2xl transition-all duration-200 ${activeTab===tab.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110' : 'text-slate-400 hover:bg-slate-50'}`}
+          >
+            {tab.icon}
+          </button>
         ))}
-        <button onClick={()=>{setIsModalOpen(true); setEditingId(null);}} className="p-4 bg-black text-white rounded-3xl -mt-10 border-4 border-white shadow-xl active:scale-90 transition-all font-black"><Plus size={32}/></button>
+        <button 
+          onClick={()=>{setEditingId(null); setIsModalOpen(true);}} 
+          className="p-3.5 bg-slate-800 text-white rounded-full -mt-14 border-4 border-slate-50 shadow-xl active:scale-90 transition-all flex items-center justify-center"
+        >
+          <Plus size={28} strokeWidth={3}/>
+        </button>
       </div>
 
-      {/* --- MODALS --- */}
+      {/* --- ALL MODALS (FIXED UI) --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-           <div className="bg-white rounded-[2.5rem] w-full max-w-xl max-h-[95vh] shadow-2xl overflow-hidden flex flex-col p-8 font-black uppercase">
-              <div className="flex justify-between items-center mb-6"><h3>New Transaction</h3><button onClick={() => setIsModalOpen(false)}><X size={24}/></button></div>
-              <form onSubmit={handleTransaction} className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-[10px] text-gray-400">Entry Date</label><input type="date" required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-black outline-none focus:border-black transition-all" /></div>
-                  <div><label className="text-[10px] text-blue-600">Type</label><select value={formData.type} onChange={e=>setFormData({...formData, type:e.target.value, linkedId:''})} className="w-full border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-black outline-none focus:border-black transition-all"><option value="Expense">Expense</option><option value="Income">Income</option><option value="EMI_Payment">EMI Payment</option></select></div>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all animate-in fade-in duration-300">
+           <div className="bg-white rounded-[3rem] w-full max-w-xl max-h-[90vh] shadow-2xl overflow-hidden flex flex-col p-6 md:p-10 border border-slate-100">
+              <div className="flex justify-between items-center mb-8 px-2">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Quick Transaction</h3>
+                  <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Add new income or expense</p>
                 </div>
-                <div><label className="text-[10px] text-gray-400">Category</label><input list="cats" required value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})} className="w-full border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-black outline-none focus:border-black transition-all" /></div>
-                <div><label className="text-[10px] text-gray-400">Name (Sub)</label><input required value={formData.subcategory} onChange={e=>setFormData({...formData, subcategory:e.target.value})} placeholder="Transaction Detail" className="w-full border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-black outline-none focus:border-black transition-all" /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-[10px] text-orange-600">Paid Via</label><input list="accs" required value={formData.account} onChange={e=>setFormData({...formData, account:e.target.value})} className="w-full border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-xs font-black outline-none focus:border-black transition-all" /></div>
-                  <div><label className="text-[10px] text-gray-400">Amount ₹</label><input type="number" required value={formData.amount} onChange={e=>setFormData({...formData, amount:e.target.value})} className="w-full border-2 border-gray-100 bg-gray-50 p-4 rounded-2xl text-sm font-black outline-none focus:border-black transition-all" /></div>
+                <button onClick={() => setIsModalOpen(false)} className="p-3 text-slate-400 hover:text-slate-800 hover:bg-slate-50 rounded-2xl transition-all"><X size={24}/></button>
+              </div>
+              <form onSubmit={handleTransaction} className="space-y-6 overflow-y-auto px-2 custom-scrollbar pr-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Timeline</label>
+                    <input type="date" required value={formData.date} onChange={e=>setFormData({...formData, date:e.target.value})} className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1">Entry Type</label>
+                    <select value={formData.type} onChange={e=>setFormData({...formData, type:e.target.value, linkedId:''})} className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all">
+                      <option value="Expense">Expense (-)</option>
+                      <option value="Income">Income (+)</option>
+                      <option value="EMI_Payment">EMI Payment</option>
+                      <option value="Goal_Deposit">Goal Saving</option>
+                    </select>
+                  </div>
                 </div>
-                <button type="submit" className="w-full bg-black text-white p-5 rounded-[1.5rem] text-xs font-black mt-4 shadow-xl active:scale-95 transition-all">Submit Entry</button>
+                
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                  <input list="cats" required value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})} placeholder="Select or type..." className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description (Sub)</label>
+                  <input required value={formData.subcategory} onChange={e=>setFormData({...formData, subcategory:e.target.value})} placeholder="What is this for?" className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1">Payment Source</label>
+                    <input list="accs" required value={formData.account} onChange={e=>setFormData({...formData, account:e.target.value})} placeholder="Cash/Bank..." className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Amount ₹</label>
+                    <input type="number" required value={formData.amount} onChange={e=>setFormData({...formData, amount:e.target.value})} placeholder="0.00" className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-base font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                  </div>
+                </div>
+
+                {['EMI_Payment', 'Income', 'Expense', 'Goal_Deposit'].includes(formData.type) && (
+                  <div className="space-y-1.5 bg-indigo-50/50 p-4 rounded-3xl border border-indigo-50">
+                    <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1">Link to Master Hisab</label>
+                    <select value={formData.linkedId} onChange={e=>setFormData({...formData, linkedId:e.target.value})} className="w-full bg-white border border-indigo-100 p-4 rounded-2xl text-xs font-black outline-none focus:border-indigo-500 shadow-sm transition-all">
+                      <option value="">-- No link (Independent entry) --</option>
+                      {debts.map(d=><option key={d.id} value={d.id}>{d.name} ({d.type})</option>)}
+                      {goals.map(g=><option key={g.id} value={g.id}>Goal: {g.name}</option>)}
+                    </select>
+                  </div>
+                )}
+                
+                <button type="submit" className="w-full bg-slate-900 text-white p-5 rounded-[2rem] font-black uppercase text-xs tracking-[0.2em] shadow-xl hover:bg-slate-800 active:scale-95 transition-all mt-6">Submit Record</button>
               </form>
            </div>
         </div>
       )}
 
-      {isDebtModalOpen && (<div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl font-black uppercase"><h3>Master Ledger Entry</h3><form onSubmit={handleDebt} className="space-y-4 mt-6"><input required value={debtFormData.name} onChange={e=>setDebtFormData({...debtFormData, name:e.target.value})} placeholder="Person Name" className="w-full border-2 p-4 rounded-2xl text-xs"/><select value={debtFormData.type} onChange={e=>setDebtFormData({...debtFormData, type:e.target.value})} className="w-full border-2 p-4 rounded-2xl text-xs"><option value="Given">Lent (Lena Hai)</option><option value="Taken">Borrowed (Dena Hai)</option><option value="Subscription">Policy / LIC</option></select><input type="number" required value={debtFormData.total} onChange={e=>setDebtFormData({...debtFormData, total:e.target.value})} placeholder="Total Principal ₹" className="w-full border-2 p-4 rounded-2xl text-xs"/><input type="date" required value={debtFormData.dueDate} onChange={e=>setDebtFormData({...debtFormData, dueDate:e.target.value})} className="w-full border-2 p-4 rounded-2xl text-xs"/><div className="flex gap-3"><button type="button" onClick={()=>setIsDebtModalOpen(false)} className="flex-1 bg-gray-100 p-4 rounded-2xl text-xs">Back</button><button type="submit" className="flex-1 bg-black text-white p-4 rounded-2xl text-xs">Save</button></div></form></div></div>)}
+      {/* DEBT MODAL */}
+      {isDebtModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-[3rem] w-full max-w-md p-8 shadow-2xl border border-slate-100 font-sans">
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase mb-8 px-2">Master Record Entry</h3>
+            <form onSubmit={handleDebt} className="space-y-5 px-1">
+              <input required value={debtFormData.name} onChange={e=>setDebtFormData({...debtFormData, name:e.target.value})} placeholder="Person or Loan Name" className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+              <select value={debtFormData.type} onChange={e=>setDebtFormData({...debtFormData, type:e.target.value})} className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all">
+                <option value="Given">Given (Receivable)</option>
+                <option value="Taken">Taken (Payable / Loan)</option>
+                <option value="Subscription">Policy / Subscription</option>
+              </select>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" required value={debtFormData.total} onChange={e=>setDebtFormData({...debtFormData, total:e.target.value})} placeholder="Principal ₹" className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                <input type="date" required value={debtFormData.dueDate} onChange={e=>setDebtFormData({...debtFormData, dueDate:e.target.value})} className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+              </div>
+              <div className="flex gap-4 mt-8">
+                <button type="button" onClick={()=>setIsDebtModalOpen(false)} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold uppercase text-xs hover:bg-slate-200 transition-all tracking-widest">Cancel</button>
+                <button type="submit" className="flex-1 bg-slate-900 text-white p-4 rounded-2xl font-black uppercase text-xs hover:bg-slate-800 transition-all tracking-widest shadow-lg shadow-slate-200">Save Hisab</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       
-      {isGoalModalOpen && (<div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm"><div className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl font-black uppercase"><h3>Goal Setup</h3><form onSubmit={handleGoal} className="space-y-4 mt-6"><input required value={goalFormData.name} onChange={e=>setGoalFormData({...goalFormData, name:e.target.value})} placeholder="Goal Name (e.g. Car)" className="w-full border-2 p-4 rounded-2xl text-xs"/><input type="number" required value={goalFormData.target} onChange={e=>setGoalFormData({...goalFormData, target:e.target.value})} placeholder="Target Amount ₹" className="w-full border-2 p-4 rounded-2xl text-xs"/><input type="date" required value={goalFormData.targetDate} onChange={e=>setGoalFormData({...goalFormData, targetDate:e.target.value})} className="w-full border-2 p-4 rounded-2xl text-xs"/><div className="flex gap-3"><button type="button" onClick={()=>setIsGoalModalOpen(false)} className="flex-1 bg-gray-100 p-4 rounded-2xl text-xs">Back</button><button type="submit" className="flex-1 bg-black text-white p-4 rounded-2xl text-xs">Save</button></div></form></div></div>)}
+      {/* GOAL MODAL */}
+      {isGoalModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-[3rem] w-full max-w-md p-8 shadow-2xl border border-slate-100 font-sans">
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase mb-8 px-2">Goal Planning</h3>
+            <form onSubmit={handleGoal} className="space-y-5 px-1">
+              <input required value={goalFormData.name} onChange={e=>setGoalFormData({...goalFormData, name:e.target.value})} placeholder="Goal Name (e.g. Dream House)" className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+              <div className="grid grid-cols-2 gap-4">
+                <input type="number" required value={goalFormData.target} onChange={e=>setGoalFormData({...goalFormData, target:e.target.value})} placeholder="Target ₹" className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+                <input type="date" required value={goalFormData.targetDate} onChange={e=>setGoalFormData({...goalFormData, targetDate:e.target.value})} className="w-full bg-slate-50 border-2 border-transparent p-4 rounded-2xl text-xs font-black outline-none focus:bg-white focus:border-indigo-500 transition-all" />
+              </div>
+              <div className="flex gap-4 mt-8">
+                <button type="button" onClick={()=>{setIsGoalModalOpen(false); setEditingGoalId(null);}} className="flex-1 bg-slate-100 text-slate-600 p-4 rounded-2xl font-bold uppercase text-xs hover:bg-slate-200 transition-all tracking-widest">Back</button>
+                <button type="submit" className="flex-1 bg-indigo-600 text-white p-4 rounded-2xl font-black uppercase text-xs hover:bg-indigo-700 transition-all tracking-widest shadow-lg shadow-indigo-100">Set Goal</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
+      {/* DATALISTS */}
       <datalist id="cats">{categories.map(c=><option key={c} value={c}/>)}</datalist>
       <datalist id="accs">{(['Bank', 'Cash', 'Credit Card', 'UPI', 'Wallet']).map(a=><option key={a} value={a}/>)}</datalist>
+      <datalist id="subs">{defaultSubcategories.map(s=><option key={s} value={s}/>)}</datalist>
+      <datalist id="types">{entryTypes.map(t=><option key={t} value={t}/>)}</datalist>
     </div>
   );
 };
